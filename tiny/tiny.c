@@ -80,11 +80,14 @@ void doit(int fd) {
     }
 }
 
-void clienterror(int fd, char* cause, char *errnum, char *shortmsg, char *longmsg){
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
     char buf[MAXLINE], body[MAXBUF];
 
     /* Build the HTTP response body */
-    sprintf(body, "<html><title>Tiny Error</title><body bgcolor=""ffffff"">\r\n");
+    sprintf(body,
+            "<html><title>Tiny Error</title><body bgcolor="
+            "ffffff"
+            ">\r\n");
     sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
     sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
@@ -99,13 +102,38 @@ void clienterror(int fd, char* cause, char *errnum, char *shortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
-void read_requesthdrs(rio_t *rp){
+void read_requesthdrs(rio_t *rp) {
     char buf[MAXLINE];
 
     Rio_readlinb(rp, buf, MAXLINE);
-    while(strcmp(buf, "\r\n")){
+    while (strcmp(buf, "\r\n")) {
         Rio_readlinb(rp, buf, MAXLINE);
         printf("%s", buf);
     }
     return;
+}
+
+int parse_uri(char *uri, char *filename, char *cgiargs) {
+    char *ptr;
+
+    if (!strstr(uri, "cgi-bin")) {/* Static content */
+        strcpy(cgiargs, "");
+        strcpy(filename, ".");
+        strcat(filename, uri);
+        if (uri[strlen(uri)-1] == '/')
+            strcat(filename, "home.html");
+        return 1;
+    }
+    else { /* Dynamic content */
+        ptr = index(uri, '?');
+        if(ptr){
+            strcpy(cgiargs, ptr+1);
+            *ptr = '\0';
+        }
+        else
+            strcpy(cgiargs, "");
+        strcpy(filename, ".");
+        strcat(filename, uri);
+        return 0;
+    }
 }
