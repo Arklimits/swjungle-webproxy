@@ -174,3 +174,21 @@ void get_filetype(char *filename, char *filetype) {
     else
         strcpy(filetype, "text/plain");
 }
+
+void serve_dynamic(int fd, char *filename, char *cgiargs) {
+    char buf[MAXLINE], *emptylist[] = {NULL};
+
+    /* Return first part of HTTP response */
+    sprintf(buf, "HTTP/1.- 200 OK\r\n");
+    Rio_writen(fd, buf, strlen(buf));
+    sprintf(buf, "server: Tiny Web Server\r\n");
+    Rio_writen(fd, buf, strlen(buf));
+
+    if (Fork() == 0) { /* Child */
+        /* Real server would set all CGI vars here */
+        setenv("QUERY_STRING", cgiargs, 1);
+        Dup2(fd, STDERR_FILENO);              /* Redirect stdout to client */
+        Execve(filename, emptylist, environ); /* Run CGI program */
+    }
+    Wait(NULL); /* Parent waits for and reaps child */
+}
