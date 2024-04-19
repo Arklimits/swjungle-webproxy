@@ -149,6 +149,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 void serve_static(int fd, char *filename, int filesize) {
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXLINE];
+    rio_t rio;
 
     /* Send response headers to client */
     get_filetype(filename, filetype);
@@ -164,12 +165,10 @@ void serve_static(int fd, char *filename, int filesize) {
     /* Send response body to client */
     srcfd = Open(filename, O_RDONLY, 0);
     srcp = (char *)malloc(filesize);  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Rio_readinitb(srcp, srcfd);
-    Rio_readn(srcfd, srcp, filesize);
+    Rio_readinitb(&rio, srcfd); // 파일을 버퍼로 읽기 위한 초기화
+    Rio_readn(srcfd, srcp, filesize); // 읽기
     Close(srcfd);
-
     Rio_writen(fd, srcp, filesize);
-
     free(srcp);  // Munmap(srcp, filesize);
 }
 
