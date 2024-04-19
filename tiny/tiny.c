@@ -28,52 +28,56 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
+    /* 지정된 포트로 소켓 열고 대기 */
     listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);  // line:netp:tiny:accept
-        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);
+        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                        // line:netp:tiny:accept 클라이언트 연결 수락
+        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
         printf("Accepted connection from (%s, %s)\n", hostname, port);
-        doit(connfd);   // line:netp:tiny:doit
-        Close(connfd);  // line:netp:tiny:close
+        doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
+        Close(connfd);  // line:netp:tiny:close 통신 종료
     }
 }
 
-void doit(int fd) {
+/*
+ * 클라이언트와 통신하는 함수
+ */
+void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     int is_static;
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
-    rio_t rio;
+    rio_t rio;  // Robust I/O
 
     /* Read request line and headers */
-    Rio_readinitb(&rio, fd);
-    Rio_readlineb(&rio, buf, MAXLINE);
+    Rio_readinitb(&rio, fd);            // rio에 file descriptor 저장
+    Rio_readlineb(&rio, buf, MAXLINE);  // rio에 buffer 저장
     printf("Reqeust headers:\n");
     printf("%s", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
-    if (strcasecmp(method, "GET")) {
+    if (strcasecmp(method, "GET")) {  // GET 요청 구현이 안돼있음
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
     read_requesthdrs(&rio);
 
     /* Parse URI from GET request */
-    is_static = parse_uri(uri, filename, cgiargs);
-    if (stat(filename, &sbuf) < 0) {
+    is_static = parse_uri(uri, filename, cgiargs);  // URI 파싱
+    if (stat(filename, &sbuf) < 0) {                // 잘못된 파일을 요청함
         clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
         return;
     }
 
-    if (is_static) { /* Serve static contenct */
-        if (!S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {
+    if (is_static) {                                                /* Serve static contenct */
+        if (!S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {  // 권한이 없음
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
             return;
         }
         serve_static(fd, filename, sbuf.st_size);
-    } else { /* Serve dynaic content */
-        if (!S_ISREG(sbuf.st_mode) || !(S_IXUSR & sbuf.st_mode)) {
-            clienterror(fd, filename, "403", "FOrbidden", "Tiny couldn't run the CGI program");
+    } else {                                                        /* Serve dynaic content */
+        if (!S_ISREG(sbuf.st_mode) || !(S_IXUSR & sbuf.st_mode)) {  // 권한이 없음
+            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
             return;
         }
         serve_dynamic(fd, filename, cgiargs);
@@ -118,10 +122,10 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 
     if (!strstr(uri, "cgi-bin")) { /* Static content */
         strcpy(cgiargs, "");
-        strcpy(filename, ".");
-        strcat(filename, uri);
-        if (uri[strlen(uri) - 1] == '/')
-            strcat(filename, "home.html");
+        strcpy(filename, ".");              // filename 현재 디렉터리부터 시작
+        strcat(filename, uri);              // filename에 uri 명령을 이어 붙임
+        if (uri[strlen(uri) - 1] == '/')    // uri가 /로 끝나면
+            strcat(filename, "home.html");  // filename에 hmoe.html을 이어 붙임
         return 1;
     } else { /* Dynamic content */
         ptr = index(uri, '?');
@@ -160,7 +164,7 @@ void serve_static(int fd, char *filename, int filesize) {
 }
 
 /*
- *get_filetype - Derive file type from filename
+ * get_filetype - Derive file type from filename
  */
 void get_filetype(char *filename, char *filetype) {
     if (strstr(filename, ".html"))
@@ -183,11 +187,11 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "server: Tiny Web Server\r\n");
     Rio_writen(fd, buf, strlen(buf));
-
+    printf("=== %s ===\n", filename);
     if (Fork() == 0) { /* Child */
         /* Real server would set all CGI vars here */
         setenv("QUERY_STRING", cgiargs, 1);
-        Dup2(fd, STDERR_FILENO);              /* Redirect stdout to client */
+        Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
         Execve(filename, emptylist, environ); /* Run CGI program */
     }
     Wait(NULL); /* Parent waits for and reaps child */
