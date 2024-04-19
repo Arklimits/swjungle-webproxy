@@ -19,7 +19,7 @@ int main(void) {
         n1 = atoi(arg1);
         n2 = atoi(arg2);
     }
-    method = getenv("METHOD");        // env에서 METHOD 가져오기
+    method = getenv("METHOD");  // env에서 METHOD 가져오기
 
     /* Make the response body */
     sprintf(content, "QUERY_STRING=%s", buf);  // Query로 생성
