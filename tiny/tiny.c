@@ -117,8 +117,7 @@ void read_requesthdrs(rio_t *rp) {
     return;
 }
 
-
-/* 
+/*
  * uri 분석 함수 (parsing)
  */
 int parse_uri(char *uri, char *filename, char *cgiargs) {
@@ -129,9 +128,9 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
         strcpy(filename, ".");     // filename 루트 디렉토리부터 시작
         strcat(filename, uri);     // filename에 uri 이어 붙임
         if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
-            strcpy(filename, "./index.html");
-        else if (uri[strlen(uri) - 1] == '/')  // uri가 /로 끝나면
-            strcat(filename, "home.html");     // filename에 home.html을 보여줌
+            strcpy(filename, "./templates/index.html");
+        else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
+            strcat(filename, "/templates/home.html");  // filename에 home.html을 보여줌
 
         return 1;
     } else {                    /* Dynamic content */
@@ -164,9 +163,11 @@ void serve_static(int fd, char *filename, int filesize) {
 
     /* Send response body to client */
     srcfd = Open(filename, O_RDONLY, 0);
-    srcp = (char *)malloc(filesize);   // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Rio_readn(srcfd, srcp, filesize);  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    srcp = (char *)malloc(filesize);  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    Rio_readinitb(srcp, srcfd);
+    Rio_readn(srcfd, srcp, filesize);
     Close(srcfd);
+
     Rio_writen(fd, srcp, filesize);
 
     free(srcp);  // Munmap(srcp, filesize);
