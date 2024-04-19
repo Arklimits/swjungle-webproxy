@@ -122,10 +122,13 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 
     if (!strstr(uri, "cgi-bin")) { /* Static content */
         strcpy(cgiargs, "");
-        strcpy(filename, ".");              // filename 현재 디렉터리부터 시작
-        strcat(filename, uri);              // filename에 uri 명령을 이어 붙임
-        if (uri[strlen(uri) - 1] == '/')    // uri가 /로 끝나면
-            strcat(filename, "home.html");  // filename에 hmoe.html을 이어 붙임
+        strcpy(filename, ".");            // filename 현재 디렉터리부터 시작
+        strcat(filename, uri);            // filename에 uri 명령을 이어 붙임
+        if (strstr(uri, "index")) //uri에 index가 들어가있으면 무조건 index.html를 보여줌
+                strcpy(filename, "./index.html");
+        else if (uri[strlen(uri) - 1] == '/')  // uri가 /로 끝나면
+                strcat(filename, "home.html");  // filename에 home.html을 보여줌
+
         return 1;
     } else { /* Dynamic content */
         ptr = index(uri, '?');
@@ -175,6 +178,8 @@ void get_filetype(char *filename, char *filetype) {
         strcpy(filetype, "image/png");
     else if (strstr(filename, ".jpg"))
         strcpy(filetype, "image/jpeg");
+    else if (strstr(filename, ".mp4"))
+        strcpy(filetype, "video/mp4");
     else
         strcpy(filetype, "text/plain");
 }
@@ -187,13 +192,12 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "server: Tiny Web Server\r\n");
     Rio_writen(fd, buf, strlen(buf));
-    printf("=== %s ===\n", filename);
-    
-    if (Fork() == 0) { /* Child */
+
+    if (Fork() == 0) {  // 자식 프로세스 포크
         /* Real server would set all CGI vars here */
-        setenv("QUERY_STRING", cgiargs, 1);
-        Dup2(fd, STDOUT_FILENO);              /* Redirect stdout to client */
-        Execve(filename, emptylist, environ); /* Run CGI program */
+        setenv("QUERY_STRING", cgiargs, 1);    // QUERY_STRING 환경 변수를 URI에서 추출한 CGI 인수로 설정
+        Dup2(fd, STDOUT_FILENO);               // 자식 프로세스의 표준 출력을 클라이언트 소켓에 연결된 파일 디스크립터로 출력
+        Execve(filename, emptylist, environ);  // 현재 프로세스의 이미지를 filename 프로그램으로 대체
     }
     Wait(NULL); /* Parent waits for and reaps child */
 }
