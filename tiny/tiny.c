@@ -11,9 +11,9 @@
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
 int parse_uri(char *uri, char *filename, char *cgiargs);
-void serve_static(int fd, char *filename, int filesize);
+void serve_static(int fd, char *filename, int filesize, char *method);
 void get_filetype(char *filename, char *filetype);
-void serve_dynamic(int fd, char *filename, char *cgiargs);
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 int main(int argc, char **argv) {
@@ -56,7 +56,8 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     printf("Reqeust headers:\n");
     printf("%s", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
-    if (strcasecmp(method, "GET")) {  // GET 요청 외에는 구현이 안돼있음
+
+    if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")) {  // GET / HEAD 요청 외에는 구현이 안돼있음
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
@@ -74,13 +75,13 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
             return;
         }
-        serve_static(fd, filename, sbuf.st_size);
+        serve_static(fd, filename, sbuf.st_size, method);
     } else {                                                        /* Serve dynaic content */
         if (!S_ISREG(sbuf.st_mode) || !(S_IXUSR & sbuf.st_mode)) {  // 권한이 없음
             clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
             return;
         }
-        serve_dynamic(fd, filename, cgiargs);
+        serve_dynamic(fd, filename, cgiargs, method);
     }
 }
 
@@ -148,7 +149,7 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
     }
 }
 
-void serve_static(int fd, char *filename, int filesize) {
+void serve_static(int fd, char *filename, int filesize, char *method) {
     int srcfd;
     char *srcp, filetype[MAXLINE], buf[MAXLINE];
     rio_t rio;
@@ -164,6 +165,8 @@ void serve_static(int fd, char *filename, int filesize) {
     printf("Response headers:\n");
     printf("%s", buf);
 
+    if (!strcasecmp(method, "HEAD"))
+        return;
     /* Send response body to client */
     srcfd = Open(filename, O_RDONLY, 0);
     srcp = (char *)malloc(filesize);   // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
@@ -192,7 +195,7 @@ void get_filetype(char *filename, char *filetype) {
         strcpy(filetype, "text/plain");
 }
 
-void serve_dynamic(int fd, char *filename, char *cgiargs) {
+void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {
     char buf[MAXLINE], *emptylist[] = {NULL};
 
     /* Return first part of HTTP response */
@@ -203,7 +206,8 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
 
     if (Fork() == 0) {  // 자식 프로세스 포크
         /* Real server would set all CGI vars here */
-        setenv("QUERY_STRING", cgiargs, 1);    // QUERY_STRING 환경 변수를 URI에서 추출한 CGI 인수로 설정
+        setenv("QUERY_STRING", cgiargs, 1);    // QUERY_STRING 환경 변수를 URI에서 추출하여 CGI 인수로 설정
+        setenv("METHOD", method, 1);           // METHOD를 CGI 인수로 설정
         Dup2(fd, STDOUT_FILENO);               // 자식 프로세스의 표준 출력을 클라이언트 소켓에 연결된 파일 디스크립터로 출력
         Execve(filename, emptylist, environ);  // 현재 프로세스의 이미지를 filename 프로그램으로 대체
     }
