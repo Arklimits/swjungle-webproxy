@@ -48,7 +48,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
-    rio_t rio;  // Robust I/O
+    rio_t rio;  // Remote I/O
 
     /* Read request line and headers */
     Rio_readinitb(&rio, fd);            // rio에 file descriptor 저장
@@ -56,7 +56,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     printf("Reqeust headers:\n");
     printf("%s", buf);
     sscanf(buf, "%s %s %s", method, uri, version);
-    if (strcasecmp(method, "GET")) {  // GET 요청 구현이 안돼있음
+    if (strcasecmp(method, "GET")) {  // GET 요청 외에는 구현이 안돼있음
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
@@ -64,7 +64,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
 
     /* Parse URI from GET request */
     is_static = parse_uri(uri, filename, cgiargs);  // URI 파싱
-    if (stat(filename, &sbuf) < 0) {                // 잘못된 파일을 요청함
+    if (stat(filename, &sbuf) < 0) {                // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
         clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
         return;
     }
@@ -97,7 +97,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
 
     /* Print the HTTP responese */
-    sprintf(buf, "HTTP1.0 %s %s\r\n", errnum, shortmsg);
+    sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "Content-type: text/html\r\n");
     Rio_writen(fd, buf, strlen(buf));
@@ -146,7 +146,7 @@ void serve_static(int fd, char *filename, int filesize) {
 
     /* Send response headers to client */
     get_filetype(filename, filetype);
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
+    sprintf(buf, "HTTP/1.1 200 OK\r\n");
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sConnection: close\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
@@ -183,11 +183,12 @@ void serve_dynamic(int fd, char *filename, char *cgiargs) {
     char buf[MAXLINE], *emptylist[] = {NULL};
 
     /* Return first part of HTTP response */
-    sprintf(buf, "HTTP/1.- 200 OK\r\n");
+    sprintf(buf, "HTTP/1.1 200 OK\r\n");
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "server: Tiny Web Server\r\n");
     Rio_writen(fd, buf, strlen(buf));
     printf("=== %s ===\n", filename);
+    
     if (Fork() == 0) { /* Child */
         /* Real server would set all CGI vars here */
         setenv("QUERY_STRING", cgiargs, 1);
