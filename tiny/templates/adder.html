@@ -1,7 +1,23 @@
 <html>
-<head><title>test</title></head>
-<body> 
-<img align="middle" src="./static/godzilla.gif">
-Dave O'Hallaron
+<script>
+    function adder() {
+        arg1 = document.getElementById('num1').value
+        arg2 = document.getElementById('num2').value
+        document.location = '/cgi-bin/adder?' + arg1 + '&' + arg2;
+    }
+</script>
+
+<head>
+    <title>Problem 11.10</title>
+</head>
+
+<body>
+    <label>Input Two Number to Add</label>
+    <br>
+    <input id="num1" type="text" placeholder="NUM1">
+    <input id="num2" type="text" placeholder="NUM2">
+    <button onclick="adder()">Submit</button>
+
 </body>
+
 </html>

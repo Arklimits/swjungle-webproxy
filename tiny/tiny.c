@@ -129,6 +129,8 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
         strcat(filename, uri);     // filename에 uri 이어 붙임
         if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
             strcpy(filename, "./templates/index.html");
+        else if (strstr(uri, "adder"))
+            strcpy(filename, "./templates/adder.html");
         else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
             strcat(filename, "/templates/home.html");  // filename에 home.html을 보여줌
 
@@ -164,9 +166,9 @@ void serve_static(int fd, char *filename, int filesize) {
 
     /* Send response body to client */
     srcfd = Open(filename, O_RDONLY, 0);
-    srcp = (char *)malloc(filesize);  // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
-    Rio_readinitb(&rio, srcfd); // 파일을 버퍼로 읽기 위한 초기화
-    Rio_readn(srcfd, srcp, filesize); // 읽기
+    srcp = (char *)malloc(filesize);   // srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
+    Rio_readinitb(&rio, srcfd);        // 파일을 버퍼로 읽기 위한 초기화
+    Rio_readn(srcfd, srcp, filesize);  //
     Close(srcfd);
     Rio_writen(fd, srcp, filesize);
     free(srcp);  // Munmap(srcp, filesize);
