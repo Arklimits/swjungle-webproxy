@@ -9,7 +9,7 @@ const void print_log(char *desc, char *text);
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-void parse_uri(char *uri, char *server, char *path, char *port, char *method);
+void parse_uri(char *uri, char *servername, char *path, char *port, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char server[MAXLINE], path[MAXLINE], cgiargs[MAXLINE], port[MAXLINE];
+    char servername[MAXLINE], path[MAXLINE], cgiargs[MAXLINE], port[MAXLINE];
     rio_t rio;  // Remote I/O
 
     /* Read request line and headers */
@@ -71,7 +71,12 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     }
 
     read_requesthdrs(&rio);
-    parse_uri(uri, server, path, port, method);
+    parse_uri(uri, servername, path, port, method);
+
+    print_log("Server Name", servername);
+    print_log("Path", path);
+    print_log("Port", port);
+    print_log("Method", method);
 
     // /* Parse URI from GET request */
     // if ( < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
@@ -109,7 +114,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
             ">\r\n");
     sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-    sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+    sprintf(body, "%s<hr><em>The Tiny Web servername</em>\r\n", body);
 
     /* Print the HTTP responese */
     sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
@@ -135,24 +140,24 @@ void read_requesthdrs(rio_t *rp) {
 /*
  * uri 분석 함수 (parsing)
  */
-void parse_uri(char *uri, char *server, char *path, char *port, char *method) {
-    char *server_ptr = strstr(uri, "http://") + 2;
+void parse_uri(char *uri, char *servername, char *path, char *port, char *method) {
+    char *server_ptr = strstr(uri, "http://") + 7;
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
 
     /* Path 설정 */
     strcpy(path, path_ptr + 1);
-    path_ptr = '\0';
+    *path_ptr = '\0';
 
     /* Port 설정 */
     if (port_ptr)
         strcpy(port, port_ptr + 1);
     else
         strcpy(port, "80");
-    port_ptr = '\0';
+    *port_ptr = '\0';
 
     /* Server 주소 설정 */
-    strcpy(server, server_ptr);
+    strcpy(servername, server_ptr);
 
     /* method 설정 */
     strcpy(method, "HTTP/1.0");
