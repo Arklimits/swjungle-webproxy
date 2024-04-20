@@ -75,7 +75,7 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
         return;
     }
 
-    if (!strstr(uri, "http://")) {
+    if (strstr(uri, "favicon.ico")) {
         clienterror(cli_fd, method, "400", "Bad Request", "Server need http:// to proxy.");
         return;
     }
@@ -131,7 +131,7 @@ void write_request_hdrs(char *buf, char *method, char *path, char *version, char
  * uri 분석 함수 (parsing)
  */
 void parse_uri(char *uri, char *host_name, char *path, char *port) {
-    char *server_ptr = strstr(uri, "http://") + 7;
+    char *server_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
 
@@ -140,8 +140,11 @@ void parse_uri(char *uri, char *host_name, char *path, char *port) {
     *path_ptr = '\0';
 
     /* Port 설정 */
-    strcpy(port, port_ptr + 1);
-    *port_ptr = '\0';
+    if (port_ptr != NULL) {
+        strcpy(port, port_ptr + 1);
+        *port_ptr = '\0';
+    } else
+        strcpy(port, "80");
 
     /* Server 주소 설정 */
     strcpy(host_name, server_ptr);
