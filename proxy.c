@@ -9,7 +9,7 @@ const void print_log(char *desc, char *text);
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *filename, char *cgiargs);
+int parse_uri(char *uri, char *filename, char *args, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -72,13 +72,13 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
 
     read_requesthdrs(&rio);
 
+    parse_uri(uri, filename, cgiargs, method);
+
     /* Parse URI from GET request */
     if (stat(filename, &sbuf) < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
         clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
         return;
     }
-
-    
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
@@ -117,30 +117,20 @@ void read_requesthdrs(rio_t *rp) {
 /*
  * uri 분석 함수 (parsing)
  */
-int parse_uri(char *uri, char *filename, char *cgiargs) {
+int parse_uri(char *uri, char *filename, char *args, char *method) {
     char *ptr;
 
-    if (!strstr(uri, "cgi-bin")) { /* Static content */
-        strcpy(cgiargs, "");       // cgiargs는 없음
-        strcpy(filename, ".");     // filename 루트 디렉토리부터 시작
-        strcat(filename, uri);     // filename에 uri 이어 붙임
-        if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
-            strcpy(filename, "./templates/index.html");
-        else if (strstr(uri, "adder"))
-            strcpy(filename, "./templates/adder.html");
-        else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
-            strcat(filename, "/templates/home.html");  // filename에 home.html을 보여줌
+    /* args & filename 설정 */
+    if (strstr(uri, "?")) {        /* arg 여부 체크 */
+        ptr = index(uri, '?');     // uri에서 ?를 탐색
+        strcpy(args, ptr + 1);  // ? 뒤부터 cgiargs로 지정
+        *ptr = '\0';               // ? 뒤부터 인식 못하게 하기 위해서 NULL로 변경
+    } else
+        strcpy(args, "");  // ?가 없으면 cgiargs는 없음
 
-        return 1;
-    } else {                    /* Dynamic content */
-        ptr = index(uri, '?');  // uri에서 ?를 탐색
-        if (ptr) {
-            strcpy(cgiargs, ptr + 1);  // ? 뒤부터 cgiargs로 지정
-            *ptr = '\0';               // ? 뒤부터 인식 못하게 하기 위해서 NULL로 변경
-        } else
-            strcpy(cgiargs, "");  // ?가 없으면 cgiargs는 없음
-        strcpy(filename, ".");    // filename 루트 디렉토리부터 시작
-        strcat(filename, uri);    // cgiargs를 제외한 uri 읽기
-        return 0;
-    }
+    strcpy(filename, ".");    // filename 루트 디렉토리부터 시작
+    strcat(filename, uri);    // cgiargs를 제외한 uri 읽기
+
+    /* method 설정 */
+    strcpy(method, "HTTP/1.0");
 }
