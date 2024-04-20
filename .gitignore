@@ -1,5 +1,5 @@
-# Test Files
-output.text
+# Text Files
+*.txt
 
 # Targets
 tiny/tiny
