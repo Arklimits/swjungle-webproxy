@@ -37,6 +37,7 @@ int main(int argc, char **argv) {
 }
 
 void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
+    FILE *fp = fopen("output.txt", "a");
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
@@ -45,8 +46,11 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     /* Read request line and headers */
     Rio_readinitb(&rio, fd);            // rio에 file descriptor 저장
     Rio_readlineb(&rio, buf, MAXLINE);  // rio에 buffer 저장
-    printf("Reqeust headers:\n");
-    printf("%s", buf);
+
+    fprintf(fp, "Reqeust headers:\n%s", buf);
+
+    fclose(fp);
+
     sscanf(buf, "%s %s %s", method, uri, version);
 
     if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")) {  // GET / HEAD 요청 외에는 구현이 안돼있음
@@ -65,9 +69,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
         clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
         return;
     }
-    serve_static(fd, filename, sbuf.st_size, method);
 }
-
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
     char buf[MAXLINE], body[MAXBUF];
