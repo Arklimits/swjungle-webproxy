@@ -8,7 +8,7 @@ const void print_log(char *desc, char *text);
 #define MAX_OBJECT_SIZE 102400
 
 void doit(int fd);
-void write_requesthdrs(rio_t *rp, char *method, char *path, char *version, char *host_name, char *port);
+void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port);
 void parse_uri(char *uri, char *host_name, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
@@ -55,17 +55,16 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void doit(int client_fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
+void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     struct stat sbuf;
-    char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char buf[MAX_OBJECT_SIZE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char host_name[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
-    char request_buf[MAXLINE], receive_buf[MAX_OBJECT_SIZE];
-    int host_fd, content_length;
-    rio_t rio, rio2;
+    int host_fd;
+    rio_t cli_rio, host_rio;
 
     /* Read request line and headers */
-    Rio_readinitb(&rio, client_fd);     // rio에 file descriptor 저장
-    Rio_readlineb(&rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
+    Rio_readinitb(&cli_rio, cli_fd);     // rio에 file descriptor 저장
+    Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
     print_log("Request Headers", buf);
 
@@ -74,13 +73,13 @@ void doit(int client_fd) {  // fd: 클라이언트 연결을 나타내는 file d
 
     print_log("URI", uri);
 
-    if (strlen(uri) < 2) {  // 아무것도 안들어가서 Segfault 나는 것 방지
-        clienterror(client_fd, method, "305", "It's Proxy Server", "Empty Request");
+    if (strlen(uri) < 2) {
+        clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
         return;
     }
 
-    if (strstr(uri, "favicon")) {  // 브라우저에서 Test 시 favicon 때문에 프로그램이 멈추는 것 방지
-        clienterror(client_fd, method, "404", "Not Found", "No favicon.ico");
+    if (!strstr(uri, "http://")) {
+        clienterror(cli_fd, method, "400", "Bad Request", "Server need http:// to proxy.");
         return;
     }
 
@@ -90,16 +89,18 @@ void doit(int client_fd) {  // fd: 클라이언트 연결을 나타내는 file d
     print_log("Path", path);
     print_log("Port", port);
 
-    write_requesthdrs(request_buf, method, path, version, host_name, port);
+    write_requesthdrs(buf, method, path, version, host_name, port);
 
     // Server 소켓 생성
     host_fd = Open_clientfd(host_name, port);
+    if (host_fd < 0)
+        clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
 
-    Rio_writen(host_fd, request_buf, strlen(request_buf));
-    Rio_readinitb(&rio2, host_fd);
-    Rio_readnb(&rio2, receive_buf, MAX_OBJECT_SIZE);
-    print_log("Received Buffer", receive_buf);
-    Rio_writen(client_fd, receive_buf, MAX_OBJECT_SIZE);
+    Rio_writen(host_fd, buf, strlen(buf));
+    Rio_readinitb(&host_rio, host_fd);
+    Rio_readnb(&host_rio, buf, MAX_OBJECT_SIZE);
+    print_log("Received Buffer", buf);
+    Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
 
     Close(host_fd);
 }
@@ -126,12 +127,12 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
-void write_requesthdrs(rio_t *rp, char *method, char *path, char *version, char *host_name, char *port) {
-    sprintf(rp, "%s %s %s\r\n", method, path, version);
-    sprintf(rp, "%sHOST: %s\r\n", rp, host_name);
-    sprintf(rp, "%s%s", rp, "Proxy-Connection: close\r\n");
-    sprintf(rp, "%s%s", rp, user_agent_hdr);
-    sprintf(rp, "%s%s", rp, "Connection: close\r\n\r\n");
+void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port) {
+    sprintf(buf, "%s %s %s\r\n", method, path, version);
+    sprintf(buf, "%sHOST: %s\r\n", buf, host_name);
+    sprintf(buf, "%s%s\r\n", buf, "Proxy-Connection: close");
+    sprintf(buf, "%s%s\r\n", buf, "Connection: close");
+    sprintf(buf, "%s%s\r\n", buf, user_agent_hdr);
 }
 
 /*
