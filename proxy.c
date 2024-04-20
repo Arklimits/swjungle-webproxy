@@ -71,8 +71,6 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
     sscanf(buf, "%s %s %s", method, uri, version);
     strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정
 
-    print_log("URI", uri);
-
     if (strlen(uri) < 2) {
         clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
         return;
@@ -84,16 +82,10 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
     }
 
     parse_uri(uri, host_name, path, port);
-
-    print_log("Host Name", host_name);
-    print_log("Path", path);
-    print_log("Port", port);
-
     write_request_hdrs(buf, method, path, version, host_name, port);
 
     // Server 소켓 생성
-    host_fd = Open_clientfd(host_name, port);
-    if (host_fd < 0) {
+    if ((host_fd = open_clientfd(host_name, port)) < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
         return;
     }
@@ -104,7 +96,7 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
     print_log("Received Buffer", buf);
     Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
 
-    Close(host_fd);
+    close(host_fd);
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
@@ -121,11 +113,10 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
     /* Print the HTTP responese */
     sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
+    sprintf(buf, "%sContent-type: text/html\r\n", buf);
+    sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
     Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-type: text/html\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
-    Rio_writen(fd, buf, strlen(buf));
+    
     Rio_writen(fd, body, strlen(body));
 }
 

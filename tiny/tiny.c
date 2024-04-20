@@ -100,10 +100,8 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
     /* Print the HTTP responese */
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-type: text/html\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+    sprintf(buf, "%sContent-type: text/html\r\n", buf);
+    sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
     Rio_writen(fd, buf, strlen(buf));
     Rio_writen(fd, body, strlen(body));
 }
@@ -200,8 +198,7 @@ void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {
 
     /* Return first part of HTTP response */
     sprintf(buf, "HTTP/1.1 200 OK\r\n");
-    Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "server: Tiny Web Server\r\n");
+    sprintf(buf, "%sserver: Tiny Web Server\r\n", buf);
     Rio_writen(fd, buf, strlen(buf));
 
     if (Fork() == 0) {  // 자식 프로세스 포크
