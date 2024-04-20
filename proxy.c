@@ -113,10 +113,11 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
     /* Print the HTTP responese */
     sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
+    sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sContent-type: text/html\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
     Rio_writen(fd, buf, strlen(buf));
-    
+
     Rio_writen(fd, body, strlen(body));
 }
 
