@@ -9,7 +9,7 @@ const void print_log(char *desc, char *text);
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-int parse_uri(char *uri, char *filename, char *args, char *method);
+void parse_uri(char *uri, char *server, char *path, char *port, char *method);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
 void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char filename[MAXLINE], cgiargs[MAXLINE];
+    char server[MAXLINE], path[MAXLINE], cgiargs[MAXLINE], port[MAXLINE];
     rio_t rio;  // Remote I/O
 
     /* Read request line and headers */
@@ -71,14 +71,32 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     }
 
     read_requesthdrs(&rio);
+    parse_uri(uri, server, path, port, method);
 
-    parse_uri(uri, filename, cgiargs, method);
+    // /* Parse URI from GET request */
+    // if ( < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
+    //     clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
+    //     return;
+    // }
 
-    /* Parse URI from GET request */
-    if (stat(filename, &sbuf) < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
-        clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
-        return;
-    }
+    int srcfd;
+    char *srcp;
+
+    sprintf(buf, "HTTP/1.0 200 OK\r\n");
+    sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+    sprintf(buf, "%sConnection: close\r\n", buf);
+    sprintf(buf, "%sContent-length: %d\r\n", buf, sbuf.st_size);
+    sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, "text/html");
+    Rio_writen(fd, buf, strlen(buf));
+    print_log("Response headers", buf);
+
+    srcfd = Open(path, O_RDONLY, 0);
+    srcp = (char *)malloc(sbuf.st_size);
+    Rio_readinitb(&rio, srcfd);            // 파일을 버퍼로 읽기 위한 초기화
+    Rio_readn(srcfd, srcp, sbuf.st_size);  //
+    Close(srcfd);
+    Rio_writen(fd, srcp, sbuf.st_size);
+    free(srcp);  // Munmap(srcp, filesize);
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
@@ -117,19 +135,24 @@ void read_requesthdrs(rio_t *rp) {
 /*
  * uri 분석 함수 (parsing)
  */
-int parse_uri(char *uri, char *filename, char *args, char *method) {
-    char *ptr;
+void parse_uri(char *uri, char *server, char *path, char *port, char *method) {
+    char *server_ptr = strstr(uri, "http://") + 2;
+    char *port_ptr = strchr(server_ptr, ':');
+    char *path_ptr = strchr(server_ptr, '/');
 
-    /* args & filename 설정 */
-    if (strstr(uri, "?")) {        /* arg 여부 체크 */
-        ptr = index(uri, '?');     // uri에서 ?를 탐색
-        strcpy(args, ptr + 1);  // ? 뒤부터 cgiargs로 지정
-        *ptr = '\0';               // ? 뒤부터 인식 못하게 하기 위해서 NULL로 변경
-    } else
-        strcpy(args, "");  // ?가 없으면 cgiargs는 없음
+    /* Path 설정 */
+    strcpy(path, path_ptr + 1);
+    path_ptr = '\0';
 
-    strcpy(filename, ".");    // filename 루트 디렉토리부터 시작
-    strcat(filename, uri);    // cgiargs를 제외한 uri 읽기
+    /* Port 설정 */
+    if (port_ptr)
+        strcpy(port, port_ptr + 1);
+    else
+        strcpy(port, "80");
+    port_ptr = '\0';
+
+    /* Server 주소 설정 */
+    strcpy(server, server_ptr);
 
     /* method 설정 */
     strcpy(method, "HTTP/1.0");
