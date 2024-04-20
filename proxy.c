@@ -9,7 +9,7 @@ const void print_log(char *desc, char *text);
 
 void doit(int fd);
 void read_requesthdrs(rio_t *rp);
-void parse_uri(char *uri, char *servername, char *path, char *port, char *method);
+void parse_uri(char *uri, char *servername, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -65,18 +65,23 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
 
     sscanf(buf, "%s %s %s", method, uri, version);
 
+    print_log("URI", uri);
+
+    if (!strcmp(uri,"/"))
+        clienterror(fd, method, "305", "It's Proxy Server", "Empty Request");
+        return;
+
     if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")) {  // GET / HEAD 요청 외에는 구현이 안돼있음
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
 
     read_requesthdrs(&rio);
-    parse_uri(uri, servername, path, port, method);
+    parse_uri(uri, servername, path, port);
 
     print_log("Server Name", servername);
     print_log("Path", path);
     print_log("Port", port);
-    print_log("Method", method);
 
     // /* Parse URI from GET request */
     // if ( < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
@@ -109,19 +114,19 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 
     /* Build the HTTP response body */
     sprintf(body,
-            "<html><title>Tiny Error</title><body bgcolor="
+            "<html><title>Request Error</title><body bgcolor="
             "ffffff"
             ">\r\n");
     sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-    sprintf(body, "%s<hr><em>The Tiny Web servername</em>\r\n", body);
+    sprintf(body, "%s<hr><em>The Proxy Server</em>\r\n</body></html>", body);
 
     /* Print the HTTP responese */
     sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "Content-type: text/html\r\n");
     Rio_writen(fd, buf, strlen(buf));
-    sprintf(buf, "Content-length: %d\r\b\r\n", (int)strlen(body));
+    sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
     Rio_writen(fd, buf, strlen(buf));
     Rio_writen(fd, body, strlen(body));
 }
@@ -140,7 +145,7 @@ void read_requesthdrs(rio_t *rp) {
 /*
  * uri 분석 함수 (parsing)
  */
-void parse_uri(char *uri, char *servername, char *path, char *port, char *method) {
+void parse_uri(char *uri, char *servername, char *path, char *port) {
     char *server_ptr = strstr(uri, "http://") + 7;
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
@@ -158,7 +163,4 @@ void parse_uri(char *uri, char *servername, char *path, char *port, char *method
 
     /* Server 주소 설정 */
     strcpy(servername, server_ptr);
-
-    /* method 설정 */
-    strcpy(method, "HTTP/1.0");
 }
