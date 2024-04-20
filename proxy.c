@@ -37,7 +37,6 @@ int main(int argc, char **argv) {
 }
 
 void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
-    int is_static;
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
@@ -57,23 +56,79 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     read_requesthdrs(&rio);
 
     /* Parse URI from GET request */
-    is_static = parse_uri(uri, filename, cgiargs);  // URI 파싱
-    if (stat(filename, &sbuf) < 0) {                // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
+    if (stat(filename, &sbuf) < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
         clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
         return;
     }
 
-    if (is_static) {                                                /* Serve static contenct */
-        if (!S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {  // 권한이 없음
-            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
-            return;
-        }
-        serve_static(fd, filename, sbuf.st_size, method);
-    } else {                                                        /* Serve dynaic content */
-        if (!S_ISREG(sbuf.st_mode) || !(S_IXUSR & sbuf.st_mode)) {  // 권한이 없음
-            clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
-            return;
-        }
-        serve_dynamic(fd, filename, cgiargs, method);
+    if (!S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {  // 권한이 없음
+        clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
+        return;
+    }
+    serve_static(fd, filename, sbuf.st_size, method);
+}
+
+
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
+    char buf[MAXLINE], body[MAXBUF];
+
+    /* Build the HTTP response body */
+    sprintf(body,
+            "<html><title>Tiny Error</title><body bgcolor="
+            "ffffff"
+            ">\r\n");
+    sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
+    sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
+    sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+
+    /* Print the HTTP responese */
+    sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
+    Rio_writen(fd, buf, strlen(buf));
+    sprintf(buf, "Content-type: text/html\r\n");
+    Rio_writen(fd, buf, strlen(buf));
+    sprintf(buf, "Content-length: %d\r\b\r\n", (int)strlen(body));
+    Rio_writen(fd, buf, strlen(buf));
+    Rio_writen(fd, body, strlen(body));
+}
+
+void read_requesthdrs(rio_t *rp) {
+    char buf[MAXLINE];
+
+    Rio_readlineb(rp, buf, MAXLINE);
+    while (strcmp(buf, "\r\n")) {
+        Rio_readlineb(rp, buf, MAXLINE);
+        printf("%s", buf);
+    }
+    return;
+}
+
+/*
+ * uri 분석 함수 (parsing)
+ */
+int parse_uri(char *uri, char *filename, char *cgiargs) {
+    char *ptr;
+
+    if (!strstr(uri, "cgi-bin")) { /* Static content */
+        strcpy(cgiargs, "");       // cgiargs는 없음
+        strcpy(filename, ".");     // filename 루트 디렉토리부터 시작
+        strcat(filename, uri);     // filename에 uri 이어 붙임
+        if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
+            strcpy(filename, "./templates/index.html");
+        else if (strstr(uri, "adder"))
+            strcpy(filename, "./templates/adder.html");
+        else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
+            strcat(filename, "/templates/home.html");  // filename에 home.html을 보여줌
+
+        return 1;
+    } else {                    /* Dynamic content */
+        ptr = index(uri, '?');  // uri에서 ?를 탐색
+        if (ptr) {
+            strcpy(cgiargs, ptr + 1);  // ? 뒤부터 cgiargs로 지정
+            *ptr = '\0';               // ? 뒤부터 인식 못하게 하기 위해서 NULL로 변경
+        } else
+            strcpy(cgiargs, "");  // ?가 없으면 cgiargs는 없음
+        strcpy(filename, ".");    // filename 루트 디렉토리부터 시작
+        strcat(filename, uri);    // cgiargs를 제외한 uri 읽기
+        return 0;
     }
 }
