@@ -8,8 +8,8 @@ const void print_log(char *desc, char *text);
 #define MAX_OBJECT_SIZE 102400
 
 void doit(int fd);
-void read_requesthdrs(rio_t *rp);
-void parse_uri(char *uri, char *servername, char *path, char *port);
+void write_requesthdrs(rio_t *rp, char *method, char *path, char *version, char *host_name, char *port);
+void parse_uri(char *uri, char *host_name, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -20,13 +20,17 @@ static const char *user_agent_hdr =
 void print_log(char *desc, char *text) {
     FILE *fp = fopen("output.log", "a");
 
-    fprintf(fp, "%s: %s\n", desc, text);
+    if (text[strlen(text) - 1] != '\n')
+        fprintf(fp, "%s: %s\n", desc, text);
+    else
+        fprintf(fp, "%s: %s", desc, text);
+
     fclose(fp);
 }
 
 int main(int argc, char **argv) {
     int listenfd, connfd;
-    char hostname[MAXLINE], port[MAXLINE];
+    char host_name[MAXLINE], port[MAXLINE];
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
 
@@ -40,9 +44,9 @@ int main(int argc, char **argv) {
     listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                        // line:netp:tiny:accept 클라이언트 연결 수락
-        Getnameinfo((SA *)&clientaddr, clientlen, hostname, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
-        printf("Accepted connection from (%s, %s)\n", hostname, port);
+        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                         // line:netp:tiny:accept 클라이언트 연결 수락
+        Getnameinfo((SA *)&clientaddr, clientlen, host_name, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
+        printf("Accepted connection from (%s, %s)\n", host_name, port);
         doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
         Close(connfd);  // line:netp:tiny:close 통신 종료
     }
@@ -51,62 +55,51 @@ int main(int argc, char **argv) {
     return 0;
 }
 
-void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
+void doit(int client_fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char servername[MAXLINE], path[MAXLINE], cgiargs[MAXLINE], port[MAXLINE];
-    rio_t rio;  // Remote I/O
+    char host_name[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
+    char request_buf[MAXLINE], receive_buf[MAX_OBJECT_SIZE];
+    int host_fd, content_length;
+    rio_t rio, rio2;
 
     /* Read request line and headers */
-    Rio_readinitb(&rio, fd);            // rio에 file descriptor 저장
-    Rio_readlineb(&rio, buf, MAXLINE);  // rio에 buffer 저장
+    Rio_readinitb(&rio, client_fd);     // rio에 file descriptor 저장
+    Rio_readlineb(&rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
     print_log("Request Headers", buf);
 
     sscanf(buf, "%s %s %s", method, uri, version);
+    strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정
 
     print_log("URI", uri);
 
-    if (!strcmp(uri,"/"))
-        clienterror(fd, method, "305", "It's Proxy Server", "Empty Request");
-        return;
-
-    if (strcasecmp(method, "GET") && strcasecmp(method, "HEAD")) {  // GET / HEAD 요청 외에는 구현이 안돼있음
-        clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
+    if (strlen(uri) < 2) {  // 아무것도 안들어가서 Segfault 나는 것 방지
+        clienterror(client_fd, method, "305", "It's Proxy Server", "Empty Request");
         return;
     }
 
-    read_requesthdrs(&rio);
-    parse_uri(uri, servername, path, port);
+    if (strstr(uri, "favicon")) // 브라우저에서 Test 시 favicon 때문에 프로그램이 멈추는 것 방지
+        return;
 
-    print_log("Server Name", servername);
+    parse_uri(uri, host_name, path, port);
+
+    print_log("Host Name", host_name);
     print_log("Path", path);
     print_log("Port", port);
 
-    // /* Parse URI from GET request */
-    // if ( < 0) {  // sbuf에 filename을 꽂을 때 이상한 값이 들어오면
-    //     clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
-    //     return;
-    // }
+    write_requesthdrs(request_buf, method, path, version, host_name, port);
 
-    int srcfd;
-    char *srcp;
+    // Server 소켓 생성
+    host_fd = Open_clientfd(host_name, port);
 
-    sprintf(buf, "HTTP/1.0 200 OK\r\n");
-    sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
-    sprintf(buf, "%sConnection: close\r\n", buf);
-    sprintf(buf, "%sContent-length: %d\r\n", buf, sbuf.st_size);
-    sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, "text/html");
-    Rio_writen(fd, buf, strlen(buf));
-    print_log("Response headers", buf);
+    Rio_writen(host_fd, request_buf, strlen(request_buf));
+    Rio_readinitb(&rio2, host_fd);
+    Rio_readnb(&rio2, receive_buf, MAX_OBJECT_SIZE);
+    print_log("Received Buffer", receive_buf);
+    Rio_writen(client_fd, receive_buf, MAX_OBJECT_SIZE);
 
-    srcfd = Open(path, O_RDONLY, 0);
-    srcp = (char *)malloc(sbuf.st_size);
-    Rio_readinitb(&rio, srcfd);            // 파일을 버퍼로 읽기 위한 초기화
-    Rio_readn(srcfd, srcp, sbuf.st_size);  //
-    Close(srcfd);
-    Rio_writen(fd, srcp, sbuf.st_size);
-    free(srcp);  // Munmap(srcp, filesize);
+    Close(host_fd);
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
@@ -131,36 +124,51 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
-void read_requesthdrs(rio_t *rp) {
-    char buf[MAXLINE];
+void write_requesthdrs(rio_t *rp, char *method, char *path, char *version, char *host_name, char *port) {
+    char filetype[MAXLINE];
+    get_filetype(path, filetype);
+    sprintf(rp, "%s %s %s\r\n", method, path, version);
+    sprintf(rp, "%sHOST: %s\r\n", rp, host_name);
+    sprintf(rp, "%s%s", rp, "Proxy-Connection: close\r\n");
+    sprintf(rp, "%s%s", rp, user_agent_hdr);
+    sprintf(rp, "%s%s", rp, "Connection: close\r\n");
+    sprintf(rp, "%sContent-type: %s\r\n\r\n", rp, filetype);
+}
 
-    Rio_readlineb(rp, buf, MAXLINE);
-    while (strcmp(buf, "\r\n")) {
-        Rio_readlineb(rp, buf, MAXLINE);
-        printf("%s", buf);
-    }
-    return;
+/*
+ * get_filetype - Derive file type from filename
+ */
+void get_filetype(char *filename, char *filetype) {
+    if (strstr(filename, ".html"))
+        strcpy(filetype, "text/html");
+    else if (strstr(filename, ".gif"))
+        strcpy(filetype, "image/gif");
+    else if (strstr(filename, ".png"))
+        strcpy(filetype, "image/png");
+    else if (strstr(filename, ".jpg"))
+        strcpy(filetype, "image/jpeg");
+    else if (strstr(filename, ".mp4"))
+        strcpy(filetype, "video/mp4");
+    else
+        strcpy(filetype, "text/plain");
 }
 
 /*
  * uri 분석 함수 (parsing)
  */
-void parse_uri(char *uri, char *servername, char *path, char *port) {
+void parse_uri(char *uri, char *host_name, char *path, char *port) {
     char *server_ptr = strstr(uri, "http://") + 7;
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
 
     /* Path 설정 */
-    strcpy(path, path_ptr + 1);
+    strcpy(path, path_ptr);
     *path_ptr = '\0';
 
     /* Port 설정 */
-    if (port_ptr)
-        strcpy(port, port_ptr + 1);
-    else
-        strcpy(port, "80");
+    strcpy(port, port_ptr + 1);
     *port_ptr = '\0';
 
     /* Server 주소 설정 */
-    strcpy(servername, server_ptr);
+    strcpy(host_name, server_ptr);
 }
