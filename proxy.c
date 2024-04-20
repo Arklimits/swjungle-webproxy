@@ -8,7 +8,7 @@ const void print_log(char *desc, char *text);
 #define MAX_OBJECT_SIZE 102400
 
 void doit(int fd);
-void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port);
+void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port);
 void parse_uri(char *uri, char *host_name, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
@@ -63,7 +63,7 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
     rio_t cli_rio, host_rio;
 
     /* Read request line and headers */
-    Rio_readinitb(&cli_rio, cli_fd);     // rio에 file descriptor 저장
+    Rio_readinitb(&cli_rio, cli_fd);        // rio에 file descriptor 저장
     Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
     print_log("Request Headers", buf);
@@ -89,15 +89,14 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
     print_log("Path", path);
     print_log("Port", port);
 
-    write_requesthdrs(buf, method, path, version, host_name, port);
+    write_request_hdrs(buf, method, path, version, host_name, port);
 
     // Server 소켓 생성
     host_fd = Open_clientfd(host_name, port);
-    if (host_fd < 0){
+    if (host_fd < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
         return;
     }
-        
 
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
@@ -130,7 +129,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
-void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port) {
+void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port) {
     sprintf(buf, "%s %s %s\r\n", method, path, version);
     sprintf(buf, "%sHOST: %s\r\n", buf, host_name);
     sprintf(buf, "%s%s\r\n", buf, "Proxy-Connection: close");
