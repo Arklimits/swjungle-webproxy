@@ -61,7 +61,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
-
+    
     read_requesthdrs(&rio);
 
     /* Parse URI from GET request */
@@ -130,11 +130,11 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
         strcpy(filename, ".");     // filename 루트 디렉토리부터 시작
         strcat(filename, uri);     // filename에 uri 이어 붙임
         if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
-            strcpy(filename, "./templates/index.html");
+            strcpy(filename, "/index.html");
         else if (strstr(uri, "adder"))
-            strcpy(filename, "./templates/adder.html");
+            strcpy(filename, "/adder.html");
         else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
-            strcat(filename, "/templates/home.html");  // filename에 home.html을 보여줌
+            strcat(filename, "/home.html");  // filename에 home.html을 보여줌
 
         return 1;
     } else {                    /* Dynamic content */
@@ -152,14 +152,16 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
 
 void serve_static(int fd, char *filename, int filesize, char *method) {
     int srcfd;
-    char *srcp, buf[MAXLINE];
+    char *srcp, filetype[MAXLINE], buf[MAXLINE];
     rio_t rio;
 
     /* Send response headers to client */
+    get_filetype(filename, filetype);
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sConnection: close\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
+    sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
     Rio_writen(fd, buf, strlen(buf));
     printf("Response headers:\n%s", buf);
 
@@ -173,6 +175,24 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
     Close(srcfd);
     Rio_writen(fd, srcp, filesize);
     free(srcp);  // Munmap(srcp, filesize);
+}
+
+/*
+ * get_filetype - Derive file type from filename
+ */
+void get_filetype(char *filename, char *filetype) {
+    if (strstr(filename, ".html"))
+        strcpy(filetype, "text/html");
+    else if (strstr(filename, ".gif"))
+        strcpy(filetype, "image/gif");
+    else if (strstr(filename, ".png"))
+        strcpy(filetype, "image/png");
+    else if (strstr(filename, ".jpg"))
+        strcpy(filetype, "image/jpeg");
+    else if (strstr(filename, ".mp4"))
+        strcpy(filetype, "video/mp4");
+    else
+        strcpy(filetype, "text/plain");
 }
 
 void serve_dynamic(int fd, char *filename, char *cgiargs, char *method) {

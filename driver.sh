@@ -26,19 +26,19 @@ PORT_MAX=65000
 MAX_PORT_TRIES=10
 
 # List of text and binary files for the basic test
-BASIC_LIST="templates/home.html
+BASIC_LIST="home.html
             csapp.c
             tiny.c
-            static/godzilla.jpg
+            godzilla.jpg
             tiny"
 
 # List of text files for the cache test
 CACHE_LIST="tiny.c
-            templates/home.html
+            home.html
             csapp.c"
 
 # The file we will fetch for various tests
-FETCH_FILE="templates/home.html"
+FETCH_FILE="home.html"
 
 #####
 # Helper functions

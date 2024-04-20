@@ -79,8 +79,10 @@ void doit(int client_fd) {  // fd: 클라이언트 연결을 나타내는 file d
         return;
     }
 
-    if (strstr(uri, "favicon")) // 브라우저에서 Test 시 favicon 때문에 프로그램이 멈추는 것 방지
+    if (strstr(uri, "favicon")) {  // 브라우저에서 Test 시 favicon 때문에 프로그램이 멈추는 것 방지
+        clienterror(client_fd, method, "404", "Not Found", "No favicon.ico");
         return;
+    }
 
     parse_uri(uri, host_name, path, port);
 
