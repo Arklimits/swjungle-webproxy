@@ -130,9 +130,9 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
         strcpy(filename, ".");     // filename 루트 디렉토리부터 시작
         strcat(filename, uri);     // filename에 uri 이어 붙임
         if (strstr(uri, "index"))  // uri에 index가 들어가있으면 무조건 index.html를 보여줌
-            strcpy(filename, "/index.html");
+            strcpy(filename, "index.html");
         else if (strstr(uri, "adder"))
-            strcpy(filename, "/adder.html");
+            strcpy(filename, "adder.html");
         else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
             strcat(filename, "/home.html");  // filename에 home.html을 보여줌
 
