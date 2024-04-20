@@ -61,7 +61,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
-    
+
     read_requesthdrs(&rio);
 
     /* Parse URI from GET request */
@@ -131,8 +131,8 @@ int parse_uri(char *uri, char *filename, char *cgiargs) {
             strcpy(filename, "index.html");
         else if (strstr(uri, "adder"))
             strcpy(filename, "adder.html");
-        else if (uri[strlen(uri) - 1] == '/')          // uri가 /로 끝나면
-            strcat(filename, "/home.html");  // filename에 home.html을 보여줌
+        else if (uri[strlen(uri) - 1] == '/')  // uri가 /로 끝나면
+            strcat(filename, "/home.html");    // filename에 home.html을 보여줌
 
         return 1;
     } else {                    /* Dynamic content */
@@ -158,8 +158,8 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
     sprintf(buf, "HTTP/1.0 200 OK\r\n");
     sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
     sprintf(buf, "%sConnection: close\r\n", buf);
-    sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
-    sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
+    sprintf(buf, "%sContent-type: %s\r\n", buf, filetype);
+    sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, filesize);
     Rio_writen(fd, buf, strlen(buf));
     printf("Response headers:\n%s", buf);
 

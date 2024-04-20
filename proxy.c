@@ -56,7 +56,6 @@ int main(int argc, char **argv) {
 }
 
 void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
-    struct stat sbuf;
     char buf[MAX_OBJECT_SIZE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char host_name[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
     int host_fd;
@@ -112,8 +111,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     sprintf(body, "%s<hr><em>The Proxy Server</em>\r\n</body></html>", body);
 
     /* Print the HTTP responese */
-    sprintf(buf, "HTTP1.1 %s %s\r\n", errnum, shortmsg);
-    sprintf(buf, "%sServer: Tiny Web Server\r\n", buf);
+    sprintf(buf, "HTTP/1.1 %s %s\r\n", errnum, shortmsg);
     sprintf(buf, "%sContent-type: text/html\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
     Rio_writen(fd, buf, strlen(buf));
