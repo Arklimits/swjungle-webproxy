@@ -162,8 +162,7 @@ void serve_static(int fd, char *filename, int filesize, char *method) {
     sprintf(buf, "%sContent-length: %d\r\n", buf, filesize);
     sprintf(buf, "%sContent-type: %s\r\n\r\n", buf, filetype);
     Rio_writen(fd, buf, strlen(buf));
-    printf("Response headers:\n");
-    printf("%s", buf);
+    printf("Response headers:\n%s", buf);
 
     if (!strcasecmp(method, "HEAD"))
         return;
