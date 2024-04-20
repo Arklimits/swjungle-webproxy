@@ -93,8 +93,11 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
 
     // Server 소켓 생성
     host_fd = Open_clientfd(host_name, port);
-    if (host_fd < 0)
+    if (host_fd < 0){
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
+        return;
+    }
+        
 
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
