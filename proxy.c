@@ -127,32 +127,11 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
 }
 
 void write_requesthdrs(rio_t *rp, char *method, char *path, char *version, char *host_name, char *port) {
-    char filetype[MAXLINE];
-    get_filetype(path, filetype);
     sprintf(rp, "%s %s %s\r\n", method, path, version);
     sprintf(rp, "%sHOST: %s\r\n", rp, host_name);
     sprintf(rp, "%s%s", rp, "Proxy-Connection: close\r\n");
     sprintf(rp, "%s%s", rp, user_agent_hdr);
-    sprintf(rp, "%s%s", rp, "Connection: close\r\n");
-    sprintf(rp, "%sContent-type: %s\r\n\r\n", rp, filetype);
-}
-
-/*
- * get_filetype - Derive file type from filename
- */
-void get_filetype(char *filename, char *filetype) {
-    if (strstr(filename, ".html"))
-        strcpy(filetype, "text/html");
-    else if (strstr(filename, ".gif"))
-        strcpy(filetype, "image/gif");
-    else if (strstr(filename, ".png"))
-        strcpy(filetype, "image/png");
-    else if (strstr(filename, ".jpg"))
-        strcpy(filetype, "image/jpeg");
-    else if (strstr(filename, ".mp4"))
-        strcpy(filetype, "video/mp4");
-    else
-        strcpy(filetype, "text/plain");
+    sprintf(rp, "%s%s", rp, "Connection: close\r\n\r\n");
 }
 
 /*
