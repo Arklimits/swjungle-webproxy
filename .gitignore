@@ -1,5 +1,5 @@
-# Text Files
-*.txt
+# Log Files
+*.log
 
 # Targets
 tiny/tiny

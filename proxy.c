@@ -1,13 +1,28 @@
 #include "csapp.h"
 
+/* Print log fucntion for test */
+const void print_log(char *desc, char *text);
+
 /* Recommended max cache and object sizes */
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
+
+void doit(int fd);
+void read_requesthdrs(rio_t *rp);
+int parse_uri(char *uri, char *filename, char *cgiargs);
+void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
     "Firefox/10.0.3\r\n";
+
+void print_log(char *desc, char *text) {
+    FILE *fp = fopen("output.log", "a");
+
+    fprintf(fp, "%s: %s\n", desc, text);
+    fclose(fp);
+}
 
 int main(int argc, char **argv) {
     int listenfd, connfd;
@@ -37,7 +52,6 @@ int main(int argc, char **argv) {
 }
 
 void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
-    FILE *fp = fopen("output.txt", "a");
     struct stat sbuf;
     char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char filename[MAXLINE], cgiargs[MAXLINE];
@@ -47,9 +61,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
     Rio_readinitb(&rio, fd);            // rio에 file descriptor 저장
     Rio_readlineb(&rio, buf, MAXLINE);  // rio에 buffer 저장
 
-    fprintf(fp, "Reqeust headers:\n%s", buf);
-
-    fclose(fp);
+    print_log("Request Headers", buf);
 
     sscanf(buf, "%s %s %s", method, uri, version);
 
@@ -57,6 +69,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
         clienterror(fd, method, "501", "Not implemented", "Tiny does not implement this method");
         return;
     }
+
     read_requesthdrs(&rio);
 
     /* Parse URI from GET request */
@@ -65,10 +78,7 @@ void doit(int fd) {  // fd: 클라이언트 연결을 나타내는 file descript
         return;
     }
 
-    if (!S_ISREG(sbuf.st_mode) || !(S_IRUSR & sbuf.st_mode)) {  // 권한이 없음
-        clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
-        return;
-    }
+    
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
