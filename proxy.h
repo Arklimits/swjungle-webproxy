@@ -15,14 +15,12 @@ const void print_log(char *desc, char *text);
 /* Thread Function */
 void *thread(void *vargp);
 
-/* Cache Variable */
-static cache_list *cachelist;
 /* Cache Structure */
 typedef struct cache_t cache_t;
 typedef struct cache_list cache_list;
 /* Cache Function */
-cache_list *cache_list_init(void);
-void cache_insert(cache_list *cachelist, cache_t *ptr, char *key, char *data, int buf_size, ssize_t resp_buf_size);
+cache_list *cache_storage_init(void);
+void cache_insertcache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size);
 const void cache_move(cache_list *cachelist, cache_t *ptr);
 const void cache_delete(cache_list *cachelist);
 cache_t *cache_find(cache_t *ptr, char *data);
@@ -44,7 +42,10 @@ struct cache_list {
     int size;
 };
 
-cache_list *cache_list_init(void) {
+/*
+ * cache_storage_init - 캐시 리스트 초기화
+ */
+cache_list *cache_storage_init(void) {
     cache_list *list = (cache_list *)calloc(1, sizeof(cache_list));
     list->head = NULL;
     list->tail = NULL;
@@ -53,53 +54,73 @@ cache_list *cache_list_init(void) {
     return list;
 }
 
-void cache_insert(cache_list *cachelist, cache_t *ptr, char *key, char *data, int buf_size, ssize_t resp_buf_size) {
-    memcpy(ptr->key, key, buf_size);
+/*
+ * cache_insert - 캐시를 새로 만들어 맨 앞에 삽입
+ */
+void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size) {
+    if (list->size + resp_buf_size > MAX_CACHE_SIZE) {
+        list->size -= sizeof(list->tail->data);
+        cache_delete(list);
+    }
+
+    strcpy(ptr->key, key);
     memcpy(ptr->data, data, resp_buf_size);
 
-    if (cachelist->head == NULL) {
-        cachelist->head = ptr;
-        cachelist->tail = ptr;
+    if (list->head == NULL) {
+        list->head = ptr;
+        list->tail = ptr;
         return;
     }
 
-    cachelist->head->prev = ptr;
-    ptr->next = cachelist->head;
+    list->head->prev = ptr;
+    ptr->next = list->head;
     ptr->prev = NULL;
-    cachelist->head = ptr;
+    list->head = ptr;
+    list->size += resp_buf_size;
 }
 
-const void cache_move(cache_list *cachelist, cache_t *ptr) {
+/*
+ * cache_move - 사용한 캐시를 가장 앞으로 이동
+ */
+const void cache_move(cache_list *list, cache_t *ptr) {
+    if (list->head == ptr)
+        return;
+
     if (ptr->prev != NULL)
         ptr->prev->next = ptr->next;
-    if (ptr->next != NULL) 
+    if (ptr->next != NULL)
         ptr->next->prev = ptr->prev;
     else
-        cachelist->tail = ptr->prev;
+        list->tail = ptr->prev;
 
-    cachelist->head->prev = ptr;
-    ptr->next = cachelist->head;
+    list->head->prev = ptr;
+    ptr->next = list->head;
     ptr->prev = NULL;
-    cachelist->head = ptr;
+    list->head = ptr;
 }
 
-const void cache_delete(cache_list *cachelist) {
-    cache_t *temp = cachelist->tail->prev;
+/*
+ * cache_delete - 가장 오래전에 사용된 cache를 리스트에서 제거
+ */
+const void cache_delete(cache_list *list) {
+    cache_t *temp = list->tail->prev;
 
+    list->tail = temp;
     free(temp->next);
     temp->next = NULL;
-
-    cachelist->tail = temp;
 }
 
-cache_t *cache_find(cache_t *ptr, char *data) {
-    if (!strcmp(ptr->key, data))
+/*
+ * cache_find - cache에서 Request Header 탐색
+ */
+cache_t *cache_find(cache_t *ptr, char *key) {
+    if (!strcmp(ptr->key, key))
         return ptr;
 
     if (ptr->next == NULL)
         return NULL;
     else
-        return cache_find(ptr->next, data);
+        return cache_find(ptr->next, key);
 }
 
 /*

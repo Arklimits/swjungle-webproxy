@@ -1,5 +1,8 @@
 #include "proxy.h"
 
+/* Cache Variable */
+static cache_list *cache_storage;
+
 int main(int argc, char **argv) {
     int listenfd, *connfdp;
     char host[MAXLINE], port[MAXLINE];
@@ -13,7 +16,7 @@ int main(int argc, char **argv) {
         exit(1);
     }
 
-    cachelist = cache_list_init();
+    cache_storage = cache_storage_init();
 
     /* 지정된 포트로 소켓 열고 대기 */
     listenfd = Open_listenfd(argv[1]);
@@ -61,10 +64,10 @@ void doit(int cli_fd) {
     parse_uri(uri, host, path, port);
     write_requesthdrs(buf, method, path, version, host, port);
 
-    if (cachelist->head != NULL)
-        if ((cache = cache_find(cachelist->head, buf)) != NULL) {  // 요청 헤더가 캐시에 있을 때
+    if (cache_storage->head != NULL)
+        if ((cache = cache_find(cache_storage->head, buf)) != NULL) {  // 요청 헤더가 캐시에 있을 때
             Rio_writen(cli_fd, cache->data, MAX_OBJECT_SIZE);         // 캐시 데이터 출력 후 캐시 위치 이동 후 종료
-            cache_move(cachelist, cache);
+            cache_move(cache_storage, cache);
             return;
         }
 
@@ -84,13 +87,7 @@ void doit(int cli_fd) {
 
     close(host_fd);
 
-    cache_insert(cachelist, cache, buf, resp_buf, MAXBUF, resp_buf_size);
-    cachelist->size += resp_buf_size;
-
-    if ((cachelist->size) > MAX_CACHE_SIZE) {
-        cachelist->size -= sizeof(cachelist->tail->data);
-        cache_delete(cachelist);
-    }
+    cache_insert(cache_storage, cache, buf, resp_buf, resp_buf_size);
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
