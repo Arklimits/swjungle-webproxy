@@ -18,10 +18,15 @@ void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void *thread(void *vargp);
 
+typedef struct cache_entry{
+    char *path;
+
+}cache_entry;
+
 /*
  * print_log - 로그 파일 작성을 위한 함수
  */
-const void print_log(char *desc, char *text) {
+void print_log(char *desc, char *text) {
     FILE *fp = fopen("output.log", "a");
 
     fprintf(fp, "====================%s====================\n%s", desc, text);

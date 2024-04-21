@@ -1,4 +1,3 @@
-#include "csapp.h"
 #include "proxy.h"
 
 int main(int argc, char **argv) {
