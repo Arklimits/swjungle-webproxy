@@ -144,8 +144,11 @@ void parse_uri(char *uri, char *host, char *path, char *port) {
     char *path_ptr = strchr(server_ptr, '/');
 
     /* Path 설정 */
-    strcpy(path, path_ptr);
-    *path_ptr = '\0';
+    if (port_ptr != NULL) {
+        strcpy(path, path_ptr);
+        *path_ptr = '\0';
+    } else
+        strcpy(path, "/");
 
     /* Port 설정 */
     if (port_ptr != NULL) {
