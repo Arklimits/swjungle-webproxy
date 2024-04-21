@@ -59,12 +59,14 @@ cache_list *cache_storage_init(void) {
  * cache_insert - 캐시를 새로 만들어 맨 앞에 삽입
  */
 void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t data_size) {
-    if (list->size + data_size > MAX_CACHE_SIZE) {
-        list->size -= sizeof(list->tail->data);
+    if (ptr == NULL)
+        return;
+
+    while (list->size + data_size > MAX_CACHE_SIZE) {
         cache_delete(list);
     }
-    
-    ptr->key = (char*)calloc(1, MAXBUF);
+
+    ptr->key = (char *)calloc(1, MAXBUF);
     ptr->data = (char *)calloc(1, data_size);
 
     strcpy(ptr->key, key);
@@ -105,12 +107,14 @@ const void cache_move(cache_list *list, cache_t *ptr) {
 }
 
 /*
- * cache_delete - 가장 오래전에 사용된 cache를 리스트에서 제거
+ * cache_delete - 가장 오래전에 사용한 cache를 리스트에서 제거
  */
 const void cache_delete(cache_list *list) {
     cache_t *temp = list->tail->prev;
 
     list->tail = temp;
+    list->size -= sizeof(temp->size);
+
     free(temp->next->key);
     free(temp->next->data);
     free(temp->next);
@@ -124,16 +128,16 @@ cache_t *cache_find(cache_t *ptr, char *key) {
     if (!strcmp(ptr->key, key))
         return ptr;
 
-    if (ptr->next == NULL)
-        return NULL;
-    else
+    if (ptr->next != NULL)
         return cache_find(ptr->next, key);
+
+    return NULL;
 }
 
 /*
  * print_log - 로그 파일 작성을 위한 함수
  */
-void print_log(char *desc, char *text) {
+const void print_log(char *desc, char *text) {
     FILE *fp = fopen("output.log", "a");
 
     fprintf(fp, "====================%s====================\n%s", desc, text);
