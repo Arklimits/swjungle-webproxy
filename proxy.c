@@ -22,7 +22,7 @@ static const char *user_agent_hdr =
 /*
  * print_log - 로그 파일 작성을 위한 함수
  */
-void print_log(char *desc, char *text) {
+const void print_log(char *desc, char *text) {
     FILE *fp = fopen("output.log", "a");
 
     if (text[strlen(text) - 1] != '\n')
@@ -75,7 +75,7 @@ void doit(int cli_fd) {
     signal(SIGPIPE, SIG_IGN);
 
     char buf[MAX_OBJECT_SIZE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char host[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
+    char host[MAXLINE], path[MAXLINE], port[MAXLINE];
     int host_fd;
     rio_t cli_rio, host_rio;
 
@@ -154,7 +154,7 @@ void parse_uri(char *uri, char *host, char *path, char *port) {
     char *path_ptr = strchr(server_ptr, '/');
 
     /* Path 설정 */
-    if (port_ptr != NULL) {
+    if (path_ptr != NULL) {
         strcpy(path, path_ptr);
         *path_ptr = '\0';
     } else
