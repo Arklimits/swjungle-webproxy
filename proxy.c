@@ -6,6 +6,7 @@ static cache_list *cache_storage;
 int main(int argc, char **argv) {
     int listenfd, *connfdp;
     char host[MAXLINE], port[MAXLINE];
+    char client_data[2 * MAXLINE];
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
     pthread_t tid;
@@ -23,9 +24,10 @@ int main(int argc, char **argv) {
     while (1) {
         clientlen = sizeof(clientaddr);
         connfdp = Malloc(sizeof(int));
-        *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);                  // line:netp:tiny:accept 클라이언트 연결 수락
-        Getnameinfo((SA *)&clientaddr, clientlen, host, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집 (출력용)
-        printf("Accepted connection from (%s, %s)\n", host, port);
+        *connfdp = Accept(listenfd, (SA *)&clientaddr, &clientlen);
+        Getnameinfo((SA *)&clientaddr, clientlen, host, MAXLINE, port, MAXLINE, 0);
+        sprintf(client_data, "%s:%s", host, port);
+        print_log("Accepted connection", client_data);
         Pthread_create(&tid, NULL, thread, connfdp);
     }
 
@@ -46,7 +48,7 @@ void doit(int cli_fd) {
     Rio_readinitb(&cli_rio, cli_fd);        // 클라이언트 내용을 rio에 저장
     Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
-    print_log("Received Headers", buf);  // proxy.h 안에 구현 로그 출력(output.log)
+    print_log("Received Header", buf);  // proxy.h 안에 구현 로그 출력(output.log)
 
     sscanf(buf, "%s %s %s", method, uri, version);
     strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정 (recommended)
@@ -62,7 +64,7 @@ void doit(int cli_fd) {
     }
 
     parse_uri(uri, host, path, port);                           // uri 분해
-    write_requesthdrs(buf, method, path, version, host, port);  // 분해한 uri로 request header 작성
+    build_requesthdrs(buf, method, path, version, host, port);  // 분해한 uri로 request header 작성
     print_log("Request Header", buf);
 
     if (cache_storage->head != NULL)
@@ -75,21 +77,21 @@ void doit(int cli_fd) {
 
     cache = (cache_t *)calloc(1, sizeof(cache_t));
 
-    /* Server 소켓 생성 */
+    /* Host 소켓 생성 */
     if ((host_fd = open_clientfd(host, port)) < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
         return;
     }
 
-    /* Server에 요청 전송 및 수신 */
+    /* Host에 요청 전송 및 수신 */
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
     resp_size = Rio_readnb(&host_rio, resp_buf, MAX_OBJECT_SIZE);
     /* Client에 받은 요청 송신 */
     Rio_writen(cli_fd, resp_buf, resp_size);
     close(host_fd);
-    
-    if (resp_size <= MAX_CACHE_SIZE) // 받은 요청의 크기가 캐시 최대 사이즈보다 작으면 기억
+
+    if (resp_size <= MAX_CACHE_SIZE)  // 받은 요청의 크기가 캐시 최대 사이즈보다 작으면 기억
         cache_insert(cache_storage, cache, buf, resp_buf, resp_size);
     else
         free(cache);
@@ -97,6 +99,9 @@ void doit(int cli_fd) {
     print_log("Received Buffer", resp_buf);
 }
 
+/*
+ * clienterror - Client에 Error 반환
+ */
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
     char buf[MAXBUF], body[MAXLINE];
 
@@ -109,16 +114,19 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
     sprintf(body, "%s<hr><em>The Proxy Server</em>\r\n</body></html>", body);
 
-    /* Print the HTTP responese */
+    /* Build the HTTP responese */
     sprintf(buf, "HTTP/1.1 %s %s\r\n", errnum, shortmsg);
     sprintf(buf, "%sContent-type: text/html\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
 
+    /* Print the HTTP response */
     Rio_writen(fd, buf, strlen(buf));
     Rio_writen(fd, body, strlen(body));
 }
-
-void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host, char *port) {
+/*
+ * build_requesthrds - Host에 보낼 Request Header 제작
+ */
+void build_requesthdrs(char *buf, char *method, char *path, char *version, char *host, char *port) {
     sprintf(buf, "%s %s %s\r\n", method, path, version);
     sprintf(buf, "%sHOST: %s\r\n", buf, host);
     sprintf(buf, "%s%s\r\n", buf, "Proxy-Connection: close");
@@ -127,7 +135,7 @@ void write_requesthdrs(char *buf, char *method, char *path, char *version, char 
 }
 
 /*
- * uri 분석 함수 (parsing)
+ * parse_uri - uri 분석 (parsing)
  */
 void parse_uri(char *uri, char *host, char *path, char *port) {
     char *host_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;  // http 필터

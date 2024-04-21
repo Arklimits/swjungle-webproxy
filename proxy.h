@@ -27,7 +27,7 @@ cache_t *cache_find(cache_t *ptr, char *data);
 
 /* Proxy.c Functions */
 void doit(int fd);
-void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host, char *port);
+void build_requesthdrs(char *buf, char *method, char *path, char *version, char *host, char *port);
 void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
