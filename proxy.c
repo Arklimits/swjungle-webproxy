@@ -8,8 +8,8 @@ const void print_log(char *desc, char *text);
 #define MAX_OBJECT_SIZE 102400
 
 void doit(int fd);
-void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port);
-void parse_uri(char *uri, char *host_name, char *path, char *port);
+void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host, char *port);
+void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 /* You won't lose style points for including this long line in your code */
@@ -30,7 +30,7 @@ void print_log(char *desc, char *text) {
 
 int main(int argc, char **argv) {
     int listenfd, connfd;
-    char host_name[MAXLINE], port[MAXLINE];
+    char host[MAXLINE], port[MAXLINE];
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
 
@@ -44,9 +44,9 @@ int main(int argc, char **argv) {
     listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                         // line:netp:tiny:accept 클라이언트 연결 수락
-        Getnameinfo((SA *)&clientaddr, clientlen, host_name, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
-        printf("Accepted connection from (%s, %s)\n", host_name, port);
+        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                    // line:netp:tiny:accept 클라이언트 연결 수락
+        Getnameinfo((SA *)&clientaddr, clientlen, host, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
+        printf("Accepted connection from (%s, %s)\n", host, port);
         doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
         Close(connfd);  // line:netp:tiny:close 통신 종료
     }
@@ -57,7 +57,7 @@ int main(int argc, char **argv) {
 
 void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file descriptor
     char buf[MAX_OBJECT_SIZE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char host_name[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
+    char host[MAXLINE], path[MAXLINE], args[MAXLINE], port[MAXLINE];
     int host_fd;
     rio_t cli_rio, host_rio;
 
@@ -80,20 +80,28 @@ void doit(int cli_fd) {  // fd: 클라이언트 연결을 나타내는 file desc
         return;
     }
 
-    parse_uri(uri, host_name, path, port);
-    write_request_hdrs(buf, method, path, version, host_name, port);
+    parse_uri(uri, host, path, port);
+
+    print_log("Host", host);
+    print_log("Path", path);
+    print_log("Port", port);
+
+    write_request_hdrs(buf, method, path, version, host, port);
 
     // Server 소켓 생성
-    if ((host_fd = open_clientfd(host_name, port)) < 0) {
+    if ((host_fd = open_clientfd(host, port)) < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
         return;
     }
 
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
-    Rio_readnb(&host_rio, buf, MAX_OBJECT_SIZE);
-    print_log("Received Buffer", buf);
-    Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
+
+    while (sizeof(buf) < MAX_OBJECT_SIZE) {
+        Rio_readnb(&host_rio, buf, MAX_OBJECT_SIZE);
+        print_log("Received Buffer", buf);
+        Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
+    }
 
     close(host_fd);
 }
@@ -119,9 +127,9 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     Rio_writen(fd, body, strlen(body));
 }
 
-void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host_name, char *port) {
+void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host, char *port) {
     sprintf(buf, "%s %s %s\r\n", method, path, version);
-    sprintf(buf, "%sHOST: %s\r\n", buf, host_name);
+    sprintf(buf, "%sHOST: %s\r\n", buf, host);
     sprintf(buf, "%s%s\r\n", buf, "Proxy-Connection: close");
     sprintf(buf, "%s%s\r\n", buf, "Connection: close");
     sprintf(buf, "%s%s\r\n", buf, user_agent_hdr);
@@ -130,7 +138,7 @@ void write_request_hdrs(char *buf, char *method, char *path, char *version, char
 /*
  * uri 분석 함수 (parsing)
  */
-void parse_uri(char *uri, char *host_name, char *path, char *port) {
+void parse_uri(char *uri, char *host, char *path, char *port) {
     char *server_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
@@ -147,5 +155,5 @@ void parse_uri(char *uri, char *host_name, char *path, char *port) {
         strcpy(port, "80");
 
     /* Server 주소 설정 */
-    strcpy(host_name, server_ptr);
+    strcpy(host, server_ptr);
 }
