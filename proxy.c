@@ -1,48 +1,14 @@
 #include "csapp.h"
 #include "proxy.h"
 
-/* Print log fucntion for test */
-const void print_log(char *desc, char *text);
-
 /* Recommended max cache and object sizes */
 #define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
-
-void doit(int fd);
-void write_requesthdrs(char *buf, char *method, char *path, char *version, char *host, char *port);
-void parse_uri(char *uri, char *host, char *path, char *port);
-void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
-void *thread(void *vargp);
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
     "Firefox/10.0.3\r\n";
-
-/*
- * print_log - 로그 파일 작성을 위한 함수
- */
-const void print_log(char *desc, char *text) {
-    FILE *fp = fopen("output.log", "a");
-
-    if (text[strlen(text) - 1] != '\n')
-        fprintf(fp, "%s: %s\n", desc, text);
-    else
-        fprintf(fp, "%s: %s", desc, text);
-
-    fclose(fp);
-}
-
-void *thread(void *vargp) {
-    int connfd = *((int *)vargp);
-
-    Pthread_detach(pthread_self());
-    Free(vargp);
-    doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
-    Close(connfd);  // line:netp:tiny:close 통신 종료
-
-    return NULL;
-}
 
 int main(int argc, char **argv) {
     int listenfd, *connfdp;
@@ -83,10 +49,10 @@ void doit(int cli_fd) {
     Rio_readinitb(&cli_rio, cli_fd);        // rio에 file descriptor 저장
     Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
-    print_log("Request Headers", buf);
+    print_log("Request Headers", buf); // proxy.h 안에 구현
 
     sscanf(buf, "%s %s %s", method, uri, version);
-    strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정
+    strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정 (recommended)
 
     if (strlen(uri) < 2) {
         clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
@@ -110,7 +76,7 @@ void doit(int cli_fd) {
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
     Rio_readnb(&host_rio, buf, MAX_OBJECT_SIZE);
-    print_log("Received Buffer", buf);
+    print_log("Received Buffers", buf);
     Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
 
     close(host_fd);
@@ -132,8 +98,8 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     sprintf(buf, "HTTP/1.1 %s %s\r\n", errnum, shortmsg);
     sprintf(buf, "%sContent-type: text/html\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
+    
     Rio_writen(fd, buf, strlen(buf));
-
     Rio_writen(fd, body, strlen(body));
 }
 
