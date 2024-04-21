@@ -11,12 +11,16 @@ void doit(int fd);
 void write_request_hdrs(char *buf, char *method, char *path, char *version, char *host, char *port);
 void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
+void *thread(void *vargp);
 
 /* You won't lose style points for including this long line in your code */
 static const char *user_agent_hdr =
     "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 "
     "Firefox/10.0.3\r\n";
 
+/*
+ * print_log - 로그 파일 작성을 위한 함수
+ */
 void print_log(char *desc, char *text) {
     FILE *fp = fopen("output.log", "a");
 
@@ -28,11 +32,21 @@ void print_log(char *desc, char *text) {
     fclose(fp);
 }
 
+void *thread(void *vargp) {
+    int connfd = *((int *)vargp);
+
+    pthread_detach(pthread_self());
+    free(vargp);
+    doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
+    Close(connfd);  // line:netp:tiny:close 통신 종료
+}
+
 int main(int argc, char **argv) {
-    int listenfd, connfd;
+    int listenfd, *connfdp;
     char host[MAXLINE], port[MAXLINE];
     socklen_t clientlen;
     struct sockaddr_storage clientaddr;
+    pthread_t tid;
 
     /* Check command line args */
     if (argc != 2) {
@@ -44,13 +58,12 @@ int main(int argc, char **argv) {
     listenfd = Open_listenfd(argv[1]);
     while (1) {
         clientlen = sizeof(clientaddr);
-        connfd = Accept(listenfd, (SA *)&clientaddr, &clientlen);                    // line:netp:tiny:accept 클라이언트 연결 수락
-        Getnameinfo((SA *)&clientaddr, clientlen, host, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
+        connfdp = malloc(sizeof(int));
+        *connfdp = accept(listenfd, (SA *)&clientaddr, &clientlen);                  // line:netp:tiny:accept 클라이언트 연결 수락
+        getnameinfo((SA *)&clientaddr, clientlen, host, MAXLINE, port, MAXLINE, 0);  // 클라이언트 호스트명 및 포트 정보 수집
         printf("Accepted connection from (%s, %s)\n", host, port);
-        doit(connfd);   // line:netp:tiny:doit 클라이언트 요청 수행
-        Close(connfd);  // line:netp:tiny:close 통신 종료
+        pthread_create(&tid, NULL, thread, connfdp);
     }
-    printf("%s", user_agent_hdr);
 
     return 0;
 }
