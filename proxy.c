@@ -36,17 +36,17 @@ void doit(int cli_fd) {
     char buf[MAXBUF], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
     char host[MAXLINE], path[MAXLINE], port[MAXLINE], resp_buf[MAX_OBJECT_SIZE];
     int host_fd;
-    ssize_t resp_buf_size;
+    ssize_t resp_size;
     rio_t cli_rio, host_rio;
     cache_t *cache;
 
     signal(SIGPIPE, SIG_IGN);  // Broken Pipe 방지
 
     /* Read request line and headers */
-    Rio_readinitb(&cli_rio, cli_fd);        // rio에 file descriptor 저장
+    Rio_readinitb(&cli_rio, cli_fd);        // 클라이언트 내용을 rio에 저장
     Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
-    print_log("Request Headers", buf);  // proxy.h 안에 구현
+    print_log("Received Headers", buf);  // proxy.h 안에 구현 로그 출력(output.log)
 
     sscanf(buf, "%s %s %s", method, uri, version);
     strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정 (recommended)
@@ -61,13 +61,15 @@ void doit(int cli_fd) {
         return;
     }
 
-    parse_uri(uri, host, path, port);
-    write_requesthdrs(buf, method, path, version, host, port);
+    parse_uri(uri, host, path, port);                           // uri 분해
+    write_requesthdrs(buf, method, path, version, host, port);  // 분해한 uri로 request header 작성
+    print_log("Request Header", buf);
 
     if (cache_storage->head != NULL)
         if ((cache = cache_find(cache_storage->head, buf)) != NULL) {  // 요청 헤더가 캐시에 있을 때
-            Rio_writen(cli_fd, cache->data, MAX_OBJECT_SIZE);         // 캐시 데이터 출력 후 캐시 위치 이동 후 종료
-            cache_move(cache_storage, cache);
+            Rio_writen(cli_fd, cache->data, MAX_OBJECT_SIZE);          // 캐시 데이터 출력 및
+            cache_move(cache_storage, cache);                          // 캐시 recent call
+            print_log("Cached Data", cache->data);
             return;
         }
 
@@ -81,17 +83,17 @@ void doit(int cli_fd) {
 
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
-    resp_buf_size = Rio_readnb(&host_rio, resp_buf, MAX_OBJECT_SIZE);
-    print_log("Received Buffers", buf);
-    Rio_writen(cli_fd, resp_buf, MAX_OBJECT_SIZE);
+    resp_size = Rio_readnb(&host_rio, resp_buf, MAX_OBJECT_SIZE);
 
+    Rio_writen(cli_fd, resp_buf, resp_size);
     close(host_fd);
 
-    cache_insert(cache_storage, cache, buf, resp_buf, resp_buf_size);
+    cache_insert(cache_storage, cache, buf, resp_buf, resp_size);
+    print_log("Received Buffer", resp_buf);
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
-    char buf[MAXLINE], body[MAXBUF];
+    char buf[MAXBUF], body[MAXLINE];
 
     /* Build the HTTP response body */
     sprintf(body,
@@ -123,7 +125,7 @@ void write_requesthdrs(char *buf, char *method, char *path, char *version, char 
  * uri 분석 함수 (parsing)
  */
 void parse_uri(char *uri, char *host, char *path, char *port) {
-    char *server_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;
+    char *server_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1; // http 필터
     char *port_ptr = strchr(server_ptr, ':');
     char *path_ptr = strchr(server_ptr, '/');
 

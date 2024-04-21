@@ -20,7 +20,7 @@ typedef struct cache_t cache_t;
 typedef struct cache_list cache_list;
 /* Cache Function */
 cache_list *cache_storage_init(void);
-void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size);
+void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t data_size);
 const void cache_move(cache_list *cachelist, cache_t *ptr);
 const void cache_delete(cache_list *cachelist);
 cache_t *cache_find(cache_t *ptr, char *data);
@@ -32,8 +32,9 @@ void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 
 struct cache_t {
-    char key[MAXBUF];
-    char data[MAX_OBJECT_SIZE];
+    char *key;
+    char *data;
+    ssize_t size;
     cache_t *prev, *next;
 };
 
@@ -57,14 +58,18 @@ cache_list *cache_storage_init(void) {
 /*
  * cache_insert - 캐시를 새로 만들어 맨 앞에 삽입
  */
-void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size) {
-    if (list->size + resp_buf_size > MAX_CACHE_SIZE) {
+void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t data_size) {
+    if (list->size + data_size > MAX_CACHE_SIZE) {
         list->size -= sizeof(list->tail->data);
         cache_delete(list);
     }
+    
+    ptr->key = (char*)calloc(1, MAXBUF);
+    ptr->data = (char *)calloc(1, data_size);
 
     strcpy(ptr->key, key);
-    memcpy(ptr->data, data, resp_buf_size);
+    memcpy(ptr->data, data, data_size);
+    ptr->size = data_size;
 
     if (list->head == NULL) {
         list->head = ptr;
@@ -76,7 +81,7 @@ void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t
     ptr->next = list->head;
     ptr->prev = NULL;
     list->head = ptr;
-    list->size += resp_buf_size;
+    list->size += data_size;
 }
 
 /*
@@ -106,6 +111,8 @@ const void cache_delete(cache_list *list) {
     cache_t *temp = list->tail->prev;
 
     list->tail = temp;
+    free(temp->next->key);
+    free(temp->next->data);
     free(temp->next);
     temp->next = NULL;
 }
