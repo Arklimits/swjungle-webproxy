@@ -1,4 +1,5 @@
 #include "csapp.h"
+#include "cache.h"
 
 /* Print log fucntion for test */
 const void print_log(char *desc, char *text);
