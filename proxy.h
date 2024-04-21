@@ -20,7 +20,7 @@ typedef struct cache_t cache_t;
 typedef struct cache_list cache_list;
 /* Cache Function */
 cache_list *cache_storage_init(void);
-void cache_insertcache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size);
+void cache_insert(cache_list *list, cache_t *ptr, char *key, char *data, ssize_t resp_buf_size);
 const void cache_move(cache_list *cachelist, cache_t *ptr);
 const void cache_delete(cache_list *cachelist);
 cache_t *cache_find(cache_t *ptr, char *data);
