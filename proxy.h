@@ -18,14 +18,18 @@ void parse_uri(char *uri, char *host, char *path, char *port);
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg);
 void *thread(void *vargp);
 
-typedef struct cache_entry {
-    char *path;
-    char *content_type;
-    int content_length;
-    void *content;
+typedef struct cache_t cache_t;
+typedef struct cache_list cache_list;
 
-    struct cache_entry *prev, *next;
-} cache_entry;
+struct cache_t {
+    char *key[MAXBUF];
+    char *val[MAX_OBJECT_SIZE];
+    cache_t *next;
+};
+
+struct cache_list {
+    cache_list *head, *tail;
+};
 
 /*
  * print_log - 로그 파일 작성을 위한 함수
