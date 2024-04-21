@@ -1,7 +1,5 @@
 #include "proxy.h"
 
-static cache_list *cachelist;
-
 int main(int argc, char **argv) {
     int listenfd, *connfdp;
     char host[MAXLINE], port[MAXLINE];
@@ -50,10 +48,10 @@ void doit(int cli_fd) {
     sscanf(buf, "%s %s %s", method, uri, version);
     strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정 (recommended)
 
-    // if (strlen(uri) < 2) {
-    //     clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
-    //     return;
-    // }
+    if (strlen(uri) < 2) {
+        clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
+        return;
+    }
 
     if (strstr(uri, "favicon.ico")) {
         clienterror(cli_fd, method, "400", "Bad Request", "Server need http:// to proxy.");

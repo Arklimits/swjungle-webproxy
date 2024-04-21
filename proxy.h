@@ -15,6 +15,8 @@ const void print_log(char *desc, char *text);
 /* Thread Function */
 void *thread(void *vargp);
 
+/* Cache Variable */
+static cache_list *cachelist;
 /* Cache Structure */
 typedef struct cache_t cache_t;
 typedef struct cache_list cache_list;
