@@ -89,7 +89,7 @@ void doit(int cli_fd) {
     Rio_writen(cli_fd, resp_buf, resp_size);
     close(host_fd);
     
-    if (resp_size <= MAX_CACHE_SIZE) // 받은 요청의 크기가 최대 Cache사이즈보다 작으면 넣으려고 시도
+    if (resp_size <= MAX_CACHE_SIZE) // 받은 요청의 크기가 캐시 최대 사이즈보다 작으면 기억
         cache_insert(cache_storage, cache, buf, resp_buf, resp_size);
     else
         free(cache);
@@ -130,9 +130,9 @@ void write_requesthdrs(char *buf, char *method, char *path, char *version, char 
  * uri 분석 함수 (parsing)
  */
 void parse_uri(char *uri, char *host, char *path, char *port) {
-    char *server_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;  // http 필터
-    char *port_ptr = strchr(server_ptr, ':');
-    char *path_ptr = strchr(server_ptr, '/');
+    char *host_ptr = strstr(uri, "http://") ? strstr(uri, "http://") + 7 : uri + 1;  // http 필터
+    char *port_ptr = strchr(host_ptr, ':');
+    char *path_ptr = strchr(host_ptr, '/');
 
     /* Path 설정 */
     if (path_ptr != NULL) {
@@ -149,5 +149,5 @@ void parse_uri(char *uri, char *host, char *path, char *port) {
         strcpy(port, "80");
 
     /* Server 주소 설정 */
-    strcpy(host, server_ptr);
+    strcpy(host, host_ptr);
 }
