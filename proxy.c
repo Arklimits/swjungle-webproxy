@@ -1,5 +1,7 @@
 #include "proxy.h"
 
+static cache_list *cachelist;
+
 int main(int argc, char **argv) {
     int listenfd, *connfdp;
     char host[MAXLINE], port[MAXLINE];
@@ -12,6 +14,8 @@ int main(int argc, char **argv) {
         fprintf(stderr, "usage: %s <port>\n", argv[0]);
         exit(1);
     }
+
+    cachelist = cache_list_init();
 
     /* 지정된 포트로 소켓 열고 대기 */
     listenfd = Open_listenfd(argv[1]);
@@ -28,26 +32,28 @@ int main(int argc, char **argv) {
 }
 
 void doit(int cli_fd) {
-    signal(SIGPIPE, SIG_IGN);
-
-    char buf[MAX_OBJECT_SIZE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
-    char host[MAXLINE], path[MAXLINE], port[MAXLINE];
+    char buf[MAXBUF], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
+    char host[MAXLINE], path[MAXLINE], port[MAXLINE], resp_buf[MAX_OBJECT_SIZE];
     int host_fd;
+    ssize_t resp_buf_size;
     rio_t cli_rio, host_rio;
+    cache_t *cache;
+
+    signal(SIGPIPE, SIG_IGN);  // Broken Pipe 방지
 
     /* Read request line and headers */
     Rio_readinitb(&cli_rio, cli_fd);        // rio에 file descriptor 저장
     Rio_readlineb(&cli_rio, buf, MAXLINE);  // rio에서 buffer 꺼내서 읽기
 
-    print_log("Request Headers", buf); // proxy.h 안에 구현
+    print_log("Request Headers", buf);  // proxy.h 안에 구현
 
     sscanf(buf, "%s %s %s", method, uri, version);
     strcpy(version, "HTTP/1.0");  // Version HTTP/1.0으로 고정 (recommended)
 
-    if (strlen(uri) < 2) {
-        clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
-        return;
-    }
+    // if (strlen(uri) < 2) {
+    //     clienterror(cli_fd, method, "418", "I'm a teapot", "It's Proxy Server. Empty Request.");
+    //     return;
+    // }
 
     if (strstr(uri, "favicon.ico")) {
         clienterror(cli_fd, method, "400", "Bad Request", "Server need http:// to proxy.");
@@ -57,7 +63,16 @@ void doit(int cli_fd) {
     parse_uri(uri, host, path, port);
     write_requesthdrs(buf, method, path, version, host, port);
 
-    // Server 소켓 생성
+    if (cachelist->head != NULL)
+        if ((cache = cache_find(cachelist->head, buf)) != NULL) {  // 요청 헤더가 캐시에 있을 때
+            Rio_writen(cli_fd, cache->data, MAX_OBJECT_SIZE);         // 캐시 데이터 출력 후 캐시 위치 이동 후 종료
+            cache_move(cachelist, cache);
+            return;
+        }
+
+    cache = (cache_t *)calloc(1, sizeof(cache_t));
+
+    /* Server 소켓 생성 */
     if ((host_fd = open_clientfd(host, port)) < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
         return;
@@ -65,11 +80,19 @@ void doit(int cli_fd) {
 
     Rio_writen(host_fd, buf, strlen(buf));
     Rio_readinitb(&host_rio, host_fd);
-    Rio_readnb(&host_rio, buf, MAX_OBJECT_SIZE);
+    resp_buf_size = Rio_readnb(&host_rio, resp_buf, MAX_OBJECT_SIZE);
     print_log("Received Buffers", buf);
-    Rio_writen(cli_fd, buf, MAX_OBJECT_SIZE);
+    Rio_writen(cli_fd, resp_buf, MAX_OBJECT_SIZE);
 
     close(host_fd);
+
+    cache_insert(cachelist, cache, buf, resp_buf, MAXBUF, resp_buf_size);
+    cachelist->size += resp_buf_size;
+
+    if ((cachelist->size) > MAX_CACHE_SIZE) {
+        cachelist->size -= sizeof(cachelist->tail->data);
+        cache_delete(cachelist);
+    }
 }
 
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg) {
@@ -88,7 +111,7 @@ void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longms
     sprintf(buf, "HTTP/1.1 %s %s\r\n", errnum, shortmsg);
     sprintf(buf, "%sContent-type: text/html\r\n", buf);
     sprintf(buf, "%sContent-length: %d\r\n\r\n", buf, (int)strlen(body));
-    
+
     Rio_writen(fd, buf, strlen(buf));
     Rio_writen(fd, body, strlen(body));
 }
