@@ -111,6 +111,7 @@ const void cache_move(cache_list *list, cache_t *ptr) {
  */
 const void cache_delete(cache_list *list) {
     cache_t *temp = list->tail->prev;
+    char(0)
 
     list->tail = temp;
     list->size -= sizeof(temp->size);
