@@ -96,7 +96,7 @@ void doit(int cli_fd) {
     else
         free(cache);
 
-    print_log("Received Buffer", resp_buf);
+    print_log("Reponse Buffer", resp_buf);
 }
 
 /*
