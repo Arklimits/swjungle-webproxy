@@ -5,7 +5,7 @@
 tiny/tiny
 tiny/cgi-bin/adder
 proxy
-.proxy/
+.proxy
 .noproxy
 
 # MacOS
