@@ -75,8 +75,6 @@ void doit(int cli_fd) {
             return;
         }
 
-    cache = (cache_t *)calloc(1, sizeof(cache_t));
-
     /* Host 소켓 생성 */
     if ((host_fd = open_clientfd(host, port)) < 0) {
         clienterror(cli_fd, method, "502", "Bad Gateway", "Cannot open tiny server socket.");
@@ -91,10 +89,10 @@ void doit(int cli_fd) {
     Rio_writen(cli_fd, resp_buf, resp_size);
     close(host_fd);
 
-    if (resp_size <= MAX_CACHE_SIZE)  // 받은 요청의 크기가 캐시 최대 사이즈보다 작으면 기억
+    if (resp_size > 0) {  // 돌아온 값이 뭔가 들어 있으면 캐시에 저장
+        cache = (cache_t *)calloc(1, sizeof(cache_t));
         cache_insert(cache_storage, cache, buf, resp_buf, resp_size);
-    else
-        free(cache);
+    }
 
     print_log("Reponse Buffer", resp_buf);
 }
