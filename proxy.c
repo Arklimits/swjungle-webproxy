@@ -59,7 +59,7 @@ void doit(int cli_fd) {
     }
 
     if (strstr(uri, "favicon.ico")) {
-        clienterror(cli_fd, method, "400", "Bad Request", "Server need http:// to proxy.");
+        clienterror(cli_fd, method, "400", "Bad Request", "Bad Request");
         return;
     }
 
